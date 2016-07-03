@@ -1,0 +1,11 @@
+#!/bin/bash
+
+for gitdir in `find ./ -name .git`; 
+    do 
+        workdir=${gitdir%/*}; 
+        echo; 
+        echo $workdir; 
+        cd $workdir
+        git pull; 
+        cd ..
+    done

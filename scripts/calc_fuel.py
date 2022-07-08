@@ -3,6 +3,22 @@ import os
 from ourairports import OurAirports
 
 report_filename = 'report.txt'
+all_airports = OurAirports()    # pre-load from files only once
+trip_fuel_threshold = 1.0
+destination_search_radius = 2.0
+
+def find_airport(latitude, longitude):
+    dis_lat = destination_search_radius/69.0
+    dis_long = destination_search_radius/54.6
+    ret_airport = []
+    for airport in all_airports.airports:
+        if abs(float(airport.latitude) - float(latitude)) < dis_lat:
+            if abs(float(airport.longitude) - float(longitude)) < dis_long:
+                if 'airport' in airport.type:
+                    ret_airport = airport
+                    break
+    return airport
+
 
 def get_from_file(filename):
     ff_col = 0
@@ -49,24 +65,19 @@ def get_from_file(filename):
 file_list = os.listdir(".")
 file_list.sort()
 
-# check if report file exists
-if (os.path.exists(report_filename)):
-    print('report file exists')
-else:
-    print('report file does not exist, creating ...')
-    with open(report_filename, 'w') as f:
-        header = 'Origin' + ' ➜ ' + 'Dest  ' + ' | ' + 'TO Date     ' + ' | ' + 'TO Time   ' + ' | ' + ' Fuel ' + ' | Filename'
-        print(header)
-        f.write(header)
-        f.write('\n')
-        f.close()
+with open(report_filename, 'w') as repfile:
+    header = 'Origin' + ' ➜ ' + 'Dest  ' + ' | ' + 'TO Date     ' + ' | ' + 'TO Time   ' + ' | ' + ' Fuel '
+    print(header)
+    repfile.write(header)
+    repfile.write('\n')
+    header = '------' + '---' + '------' + '-|-' + '------------' + '-|-' + '----------' + '-|-' + '------'
+    print(header)
+    repfile.write(header)
+    repfile.write('\n')
 
-all_airports = OurAirports()
-for filename in file_list:
-    repfile = open(report_filename, 'r')
-    if (filename not in repfile.read()):
-        # close until calculation is complete
-        repfile.close()
+
+    # all_airports = OurAirports()
+    for filename in file_list:
         if (filename.startswith('log')):
             # print('---')
             # print(filename)
@@ -80,23 +91,19 @@ for filename in file_list:
             if (origin == ""):
                 origin = "NONE"
 
-            if (fuel_consumption > 1.0):
+            if (fuel_consumption > trip_fuel_threshold):
                 # only search airports if fuel consumption is above threshold
-                dest_airports = all_airports.getAirportsByDistance(dest_lat, dest_long, 1.5)
-                if len(dest_airports) == 0:
-                    destination = 'UNKN'
+                dest_airport = find_airport(dest_lat, dest_long)
+                if dest_airport:
+                    destination = dest_airport.icao
                 else:
-                    destination = dest_airports[0].icao
+                    destination = 'UNKN'
 
                 printline = origin.rjust(6) + ' ➜ ' + destination.ljust(6) + ' | '\
                     + fdate.ljust(12) + ' | ' + ftime.ljust(10) + ' | ' \
-                    + str(round(fuel_consumption,2)).rjust(6) + ' | ' + filename
+                    + str(round(fuel_consumption,2)).rjust(6)
                 print(printline)
-                repfile = open(report_filename, 'a')
                 repfile.write(printline)
                 repfile.write('\n')
-                repfile.close()
-    else:
-        # cleanup
-        print('Found file ' + filename + ' in report, skipping ...')
-        repfile.close()
+
+    repfile.close()

@@ -65,6 +65,8 @@ def get_from_file(filename):
 file_list = os.listdir(".")
 file_list.sort()
 
+total_fuel = 0
+
 with open(report_filename, 'w') as repfile:
     header = 'Origin' + ' ➜ ' + 'Dest  ' + ' | ' + 'TO Date     ' + ' | ' + 'TO Time   ' + ' | ' + ' Fuel '
     print(header)
@@ -98,7 +100,7 @@ with open(report_filename, 'w') as repfile:
                     destination = dest_airport.icao
                 else:
                     destination = 'UNKN'
-
+                total_fuel += fuel_consumption
                 printline = origin.rjust(6) + ' ➜ ' + destination.ljust(6) + ' | '\
                     + fdate.ljust(12) + ' | ' + ftime.ljust(10) + ' | ' \
                     + str(round(fuel_consumption,2)).rjust(6)
@@ -107,3 +109,6 @@ with open(report_filename, 'w') as repfile:
                 repfile.write('\n')
 
     repfile.close()
+
+print()
+print('Total Fuel Consumption: ' + str(round(total_fuel,2)))

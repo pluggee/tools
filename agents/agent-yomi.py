@@ -5,11 +5,23 @@ import time
 from sensirion_i2c_driver import I2cConnection, LinuxI2cTransceiver
 from sensirion_i2c_sen5x import Sen5xI2cDevice
 import signal
-from influxdb import InfluxDBClient
+from influxdb import InfluxDBClient as InfluxDBClient_v1
 import logging
 import logging.handlers
 import coloredlogs
 import json
+
+import os
+from influxdb_client import InfluxDBClient, Point, WritePrecision
+from influxdb_client.client.write_api import SYNCHRONOUS
+
+import requests
+print(requests.certs.where())
+
+# You can generate an API token from the "API Tokens Tab" in the UI
+token = os.getenv("INFLUX_TOKEN")
+org = "home"
+bucket = "yomi"
 
 USER = 'admin'
 PASSWORD = 'XXXX'
@@ -42,6 +54,8 @@ logging.getLogger().addHandler(file_handler)
 
 coloredlogs.install(level='INFO')
 
+logging.info('token: {}'.format(token))
+
 with LinuxI2cTransceiver('/dev/i2c-1') as i2c_transceiver:
     device = Sen5xI2cDevice(I2cConnection(i2c_transceiver))
 
@@ -73,45 +87,55 @@ with LinuxI2cTransceiver('/dev/i2c-1') as i2c_transceiver:
                 "fields": {}
             }
 
+            point2 = Point("YomiSEN55")
+            point2.time(datetime.utcnow(), WritePrecision.NS)
+
             if (values.mass_concentration_1p0.available):
                 if (values.mass_concentration_1p0.physical != 0.0):
                     point['fields']['mc1p0'] = values.mass_concentration_1p0.physical
+                    point2.field("mc1p0", values.mass_concentration_1p0.physical)
             if (values.mass_concentration_1p0.available):
                 if (values.mass_concentration_2p5.physical != 0.0):
                     point['fields']['mc2p5'] = values.mass_concentration_2p5.physical
+                    point2.field('mc2p5', values.mass_concentration_2p5.physical)
             if (values.mass_concentration_1p0.available):
                 if (values.mass_concentration_4p0.physical != 0.0):
                     point['fields']['mc4p0'] = values.mass_concentration_4p0.physical
+                    point2.field('mc4p0', values.mass_concentration_4p0.physical)
             if (values.mass_concentration_1p0.available):
                 if (values.mass_concentration_10p0.physical != 0.0):
                     point['fields']['mc10p0'] = values.mass_concentration_10p0.physical
+                    point2.field('mc10p0', values.mass_concentration_10p0.physical)
 
             if (values.ambient_humidity.available):
                 point['fields']['rh'] = values.ambient_humidity.percent_rh
+                point2.field('rh', values.ambient_humidity.percent_rh)
 
             if (values.ambient_temperature.available):
                 point['fields']['temp_c'] = values.ambient_temperature.degrees_celsius
                 point['fields']['temp_f'] = values.ambient_temperature.degrees_fahrenheit
+                point2.field('temp_c', values.ambient_temperature.degrees_celsius)
+                point2.field('temp_f', values.ambient_temperature.degrees_fahrenheit)
 
             if (values.voc_index.available):
                 point['fields']['voc_index'] = values.voc_index.scaled
+                point2.field('voc_index', values.voc_index.scaled)
 
-            #print('mc1p0  : {}'.format(values.mass_concentration_1p0.physical))
-            #print('mc2p5  : {}'.format(values.mass_concentration_2p5.physical))
-            #print('mc4p0  : {}'.format(values.mass_concentration_4p0.physical))
-            #print('mc10p0 : {}'.format(values.mass_concentration_10p0.physical))
-            #print('RH     : {}'.format(values.ambient_humidity.percent_rh))
-            #print('Temp C : {}'.format(values.ambient_temperature.degrees_celsius))
-            #print('Temp F : {}'.format(values.ambient_temperature.degrees_fahrenheit))
-            #print('VOC    : {}'.format(values.voc_index.scaled))
-            #print(values)
+            if (values.nox_index.available):
+                point['fields']['nox_index'] = values.nox_index.scaled
+                point2.field('nox_index', values.nox_index.scaled)
+
             logging.debug('values: \n{}'.format(values))
 
             if bool(point['fields']):
                 logging.info('influxdb point: \n{}'.format(json.dumps(point, indent=4)))
-                client = InfluxDBClient(HOST, PORT, USER, PASSWORD, DBNAME)
+                client = InfluxDBClient_v1(HOST, PORT, USER, PASSWORD, DBNAME)
                 client.switch_database(DBNAME)
                 client.write_points([point])
+                with InfluxDBClient(url="https://influx.elnamla.com:8086", token=token, org=org) as client2:
+                    write_api = client2.write_api(write_options=SYNCHRONOUS)
+                    write_api.write(bucket, org, point2)
+                client2.close()
 
             # Read device status
             status = device.read_device_status()
